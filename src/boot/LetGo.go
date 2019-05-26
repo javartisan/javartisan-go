@@ -234,6 +234,9 @@ func gotoCtrl1(ok bool) string {
 }
 
 func channleCtrl() {
+
+	// 创建一个大小为1的channel，言外之意就是没有缓冲
+	// 这种channel只有读写同时都准备好了才可以进行操作，否则阻塞
 	ch := make(chan int, 1)
 
 	for {
@@ -251,6 +254,60 @@ func channleCtrl() {
 	}
 }
 
+//带有缓冲的Buffer
+func channelBuffer() {
+	bufferChannel := make(chan int, 256)
+	for {
+		select {
+		// IO要向channel发起写 0 操作，一旦IO可操作就会被select执行写
+		case bufferChannel <- 0:
+			println("chan <- 0")
+		// the same to adove
+		case bufferChannel <- 1:
+			println("chan <- 1")
+		}
+		println("channelBuffer size = ", len(bufferChannel))
+		// read data from channel
+		i := <-bufferChannel
+		fmt.Println(i)
+	}
+}
+
+type Vector []float64
+// 分配给每一个CPU的计算任务
+//是为Vetcot添加方法
+func (v Vector) DoSome(i, n int, u Vector, c chan float64) {
+	sum := 0.0
+	for ; i < n; i++ {
+		//v[i] += u.Op(v[i])//书籍上面写的OP没看懂
+		sum += v[i]
+	}
+	println(sum)
+	c <- sum
+	// 发信号告诉任务管理者我已经计算完毕了
+}
+
+const NCPU = 2
+// 如果总共同拥有16核
+func (v Vector) DoAll(u Vector) float64 {
+	c := make(chan float64, NCPU)  // 用于接收每一个CPU的任务完毕信号
+	for i := 0; i < NCPU; i++ {
+		go v.DoSome(i * len(v) / NCPU, (i + 1) * len(v) / NCPU, u, c)
+	}
+	sum := 0.0
+	// 等待全部CPU的任务完毕
+	for i := 0; i < NCPU; i++ {
+		sum += <-c    // 获取到一个数据，表示一个CPU计算完毕了
+	}
+	// 到这里表示全部计算已经结束
+	return sum
+}
+
 func main() {
-	channleCtrl()
+
+	vector := Vector{1, 2, 3, 4, 5, 6, 7, 8, 9, 0}
+	u := make(Vector, 10)
+	sum := vector.DoAll(u)
+	println(sum)
+
 }
